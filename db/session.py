@@ -40,7 +40,7 @@ async def init_db() -> None:
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-    except SQLAlchemyError as exc:
+    except (SQLAlchemyError, OSError) as exc:
         logger.warning("Database connection failed during startup: %s", exc)
 
 
