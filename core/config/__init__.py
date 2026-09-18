@@ -1,0 +1,1 @@
+from core.config.settings import settings as settings

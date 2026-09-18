@@ -1,0 +1,2 @@
+# add aiosqlite dependency for sqlite in-memory testing
+aiosqlite==0.20.0

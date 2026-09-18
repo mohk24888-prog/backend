@@ -1,0 +1,18 @@
+{
+  "first_name": "John",
+  "last_name": "Doe",
+  "position": "Forward",
+  "date_of_birth": "2000-01-01T00:00:00",
+  "nationality": "England",
+  "height_cm": 180.5,
+  "weight_kg": 75.0,
+  "preferred_foot": "Right",
+  "academy": "Test Academy",
+  "rating": 85.0,
+  "technical_rating": 88.0,
+  "tactical_rating": 80.0,
+  "physical_rating": 82.0,
+  "mental_rating": 78.0,
+  "verification_status": "verified",
+  "is_public": true
+}
