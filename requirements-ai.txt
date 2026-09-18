@@ -1,0 +1,19 @@
+# AI / CV worker dependencies
+# Install separately: pip install -r requirements-ai.txt
+
+# AI / CV
+torch==2.2.2
+torchvision==0.17.2
+ultralytics==8.2.0
+opencv-python==4.9.0.80
+Pillow==10.3.0
+numpy==1.26.4
+scipy==1.12.0
+
+# OCR
+paddlepaddle==2.6.2
+paddleocr==2.7.3
+
+# Tracking
+filterpy==1.4.5
+lap==0.4.0
