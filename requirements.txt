@@ -36,8 +36,10 @@ loguru==0.7.2
 tqdm==4.66.2
 PyYAML==6.0.1
 
-# CV integration (local repo)
-../football-player-detection-main
+# CV integration is provided by the football-player-detection-main repo.
+# It is imported conditionally in workers/tasks.py and falls back to a
+# simple YOLO pipeline when the package is not installed, so it is left
+# out of requirements.txt to avoid local-path dependency errors in CI.
 
 # Testing
 pytest==8.2.0
