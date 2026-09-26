@@ -234,6 +234,7 @@ class VideoUpload(Base):
     filename: Mapped[str] = mapped_column(String(255))
     original_path: Mapped[Optional[str]] = mapped_column(String(500))
     storage_path: Mapped[Optional[str]] = mapped_column(String(500))
+    public_url: Mapped[Optional[str]] = mapped_column(String(500))
     mime_type: Mapped[Optional[str]] = mapped_column(String(100))
     size_bytes: Mapped[Optional[int]] = mapped_column(Integer)
     duration_seconds: Mapped[Optional[float]] = mapped_column(Float)
@@ -287,6 +288,15 @@ class Analysis(Base):
     strengths: Mapped[Optional[list]] = mapped_column(JSON)
     development_areas: Mapped[Optional[list]] = mapped_column(JSON)
 
+    overlay_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    simulation_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    cv_repo_used: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    subject_track_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    selection_method: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    pipeline_warnings: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    video_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    analysis_duration_s: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -294,6 +304,31 @@ class Analysis(Base):
     player: Mapped[Player] = relationship("Player", back_populates="analyses")
     actions: Mapped[list[MatchAction]] = relationship("MatchAction", back_populates="analysis")
     heatmap_points: Mapped[list[HeatmapPoint]] = relationship("HeatmapPoint", back_populates="analysis")
+    frames: Mapped[list["AnalysisFrame"]] = relationship("AnalysisFrame", back_populates="analysis")
+
+
+class AnalysisFrame(Base):
+    __tablename__ = "analysis_frames"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    analysis_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("analyses.id"), nullable=False)
+    frame_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    timestamp_s: Mapped[float] = mapped_column(Float, nullable=False)
+    player_pixel_x: Mapped[float] = mapped_column(Float, nullable=False)
+    player_pixel_y: Mapped[float] = mapped_column(Float, nullable=False)
+    player_bbox: Mapped[list] = mapped_column(JSON, nullable=False)
+    player_conf: Mapped[float] = mapped_column(Float, nullable=False)
+    player_track_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    pitch_x_cm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    pitch_y_cm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    speed_kmh: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ball_pixel_x: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ball_pixel_y: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    possession: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    event: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    analysis: Mapped[Analysis] = relationship("Analysis", back_populates="frames")
 
 
 class HeatmapPoint(Base):

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -71,6 +73,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(RequestLoggingMiddleware)
+
+os.makedirs(settings.raw_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(settings.raw_dir)), name="static")
 
 app.include_router(auth.router, prefix=f"{settings.api_v1_str}/auth", tags=["Auth"])
 app.include_router(users.router, prefix=f"{settings.api_v1_str}/users", tags=["Users"])

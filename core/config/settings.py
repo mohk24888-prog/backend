@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     raw_dir: Path = Field(default=Path("/tmp/footiq/raw"))
     processed_dir: Path = Field(default=Path("/tmp/footiq/processed"))
 
+    cv_repo_path: Path = Field(
+        default=Path(r"C:\Users\mohamed\Downloads\gfn\football-player-detection-main")
+    )
+
 
 settings = Settings()
 

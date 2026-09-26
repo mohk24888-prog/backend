@@ -36,6 +36,9 @@ loguru==0.7.2
 tqdm==4.66.2
 PyYAML==6.0.1
 
+# CV integration (local repo)
+../football-player-detection-main
+
 # Testing
 pytest==8.2.0
 pytest-asyncio==0.23.6

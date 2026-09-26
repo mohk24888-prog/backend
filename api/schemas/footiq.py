@@ -197,12 +197,18 @@ class VideoUploadRead(TimestampedModel):
     uploaded_by: Optional[uuid.UUID] = None
     filename: str
     storage_path: Optional[str] = None
+    public_url: Optional[str] = None
     mime_type: Optional[str] = None
     size_bytes: Optional[int] = None
     duration_seconds: Optional[float] = None
     width: Optional[int] = None
     height: Optional[int] = None
     match_name: Optional[str] = None
+
+
+class VideoUrlResponse(BaseModel):
+    video_id: uuid.UUID
+    public_url: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -213,6 +219,7 @@ class AnalysisCreate(BaseModel):
     video_id: uuid.UUID
     player_id: uuid.UUID
     match_name: Optional[str] = None
+    test_session_id: Optional[uuid.UUID] = None
 
 
 class AnalysisRead(TimestampedModel):
@@ -230,6 +237,14 @@ class AnalysisRead(TimestampedModel):
     summary: Optional[str] = None
     strengths: Optional[list[str]] = None
     development_areas: Optional[list[str]] = None
+    overlay_data: Optional[dict] = None
+    simulation_data: Optional[dict] = None
+    cv_repo_used: Optional[str] = None
+    subject_track_id: Optional[int] = None
+    selection_method: Optional[str] = None
+    pipeline_warnings: Optional[list[str]] = None
+    video_url: Optional[str] = None
+    analysis_duration_s: Optional[float] = None
 
 
 class AnalysisJobRead(TimestampedModel):
@@ -344,6 +359,29 @@ class TacticalMetricRead(TimestampedModel):
     press_success_rate: Optional[float] = None
     pitch_control_contribution: Optional[float] = None
     dangerous_zone_occupancy: Optional[float] = None
+
+
+class AnalysisOverlayResponse(BaseModel):
+    analysis_id: uuid.UUID
+    overlay_data: Optional[dict] = None
+    subject_track_id: Optional[int] = None
+
+
+class AnalysisSimulationResponse(BaseModel):
+    analysis_id: uuid.UUID
+    simulation: Optional[dict] = None
+
+
+class AnalysisHeatmapResponse(BaseModel):
+    analysis_id: uuid.UUID
+    points: list[HeatmapPointRead] = []
+    image_url: Optional[str] = None
+
+
+class AnalysisTrajectoryResponse(BaseModel):
+    analysis_id: uuid.UUID
+    points: list = []
+    image_url: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

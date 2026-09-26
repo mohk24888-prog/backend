@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.deps import get_db, get_current_user
-from api.schemas.footiq import VideoUploadCreate, VideoUploadRead
+from api.schemas.footiq import VideoUploadCreate, VideoUploadRead, VideoUrlResponse
 from core.config import settings
 from db.models import VideoUpload as VideoUploadModel, Player as PlayerModel, User as UserModel
 
@@ -49,11 +49,15 @@ async def upload_video(
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(contents)
 
+    public_url = f"/static/{storage_path}"
+
     video = VideoUploadModel(
         player_id=player_uuid,
         uploaded_by=current_user.id if current_user else None,
         filename=file.filename,
+        original_path=str(dest),
         storage_path=str(dest),
+        public_url=public_url,
         mime_type=file.content_type,
         size_bytes=size,
         match_name=match_name,
@@ -61,3 +65,24 @@ async def upload_video(
     db.add(video)
     await db.flush()
     return video
+
+
+@router.get("/{video_id}/url", response_model=VideoUrlResponse)
+async def get_video_url(
+    video_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[UserModel, Depends(get_current_user)],
+) -> dict:
+    try:
+        video_uuid = uuid.UUID(str(video_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid video id")
+
+    video = (await db.execute(select(VideoUploadModel).where(VideoUploadModel.id == video_uuid))).scalar_one_or_none()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    return {
+        "video_id": video.id,
+        "public_url": video.public_url,
+    }
