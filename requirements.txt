@@ -36,8 +36,12 @@ loguru==0.7.2
 tqdm==4.66.2
 PyYAML==6.0.1
 
-# CV integration
-./football-player-detection-main
+# CV runtime dependencies for football-player-detection-main
+opencv-python>=4.11.0.86
+lap>=0.5.12
+supervision>=0.27.0
+torch>=2.9.0
+ultralytics>=8.3.227
 
 # Testing
 pytest==8.2.0
