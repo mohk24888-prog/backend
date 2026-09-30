@@ -7,7 +7,7 @@ pydantic-settings==2.2.0
 python-multipart==0.0.9
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-httpx>=0.24,<0.26
+httpx>=0.26
 
 # Database
 sqlalchemy==2.0.30
@@ -17,7 +17,7 @@ asyncpg==0.29.0
 pgvector==0.2.5
 
 # Auth / Supabase
-supabase==2.3.4
+supabase>=2.15.0
 
 # Storage
 python-magic==0.4.27
