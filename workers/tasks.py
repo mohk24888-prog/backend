@@ -28,7 +28,7 @@ from core.config import settings
 # ---------------------------------------------------------------------------
 # Optional football-player-detection-main integration
 # ---------------------------------------------------------------------------
-_CV_REPO_PATH = Path(r"C:\Users\mohamed\Downloads\gfn\football-player-detection-main")
+_CV_REPO_PATH = Path(__file__).resolve().parent.parent / "football-player-detection-main"
 _CV_AVAILABLE = False
 
 if _CV_REPO_PATH.exists():
@@ -251,6 +251,69 @@ def _build_overlay_data(
         dt_s = 1.0 / fps if fps > 0 else 0.033
         speed_kmh = (dist_px * 0.036 / dt_s) if dt_s > 0 else 0.0
         frames[i]["speed_kmh"] = round(min(speed_kmh, 40.0), 2)
+    return {"frames": frames}
+
+
+def _build_overlay_data_multiplayer(
+    all_tracks_by_frame: dict[int, list[dict]],
+    ball_positions: list[tuple[int, float, float]],
+    events: list[dict],
+    fps: float,
+    width: int,
+    height: int,
+    subject_track_id: int,
+    pitch_length_cm: float = 12000.0,
+    pitch_width_cm: float = 7000.0,
+) -> dict[str, Any]:
+    frames = []
+    sorted_frames = sorted(all_tracks_by_frame.keys())
+    for frame_idx in sorted_frames:
+        tracks = all_tracks_by_frame[frame_idx]
+        t = frame_idx / fps if fps > 0 else frame_idx * 0.033
+        
+        ball_entry = next((b for b in ball_positions if b[0] == frame_idx), None)
+        ball_xy = {"x": ball_entry[1], "y": ball_entry[2]} if ball_entry else None
+        
+        players = []
+        for trk in tracks:
+            px_m = trk.get("pitch_x_m", 0.0)
+            py_m = trk.get("pitch_y_m", 0.0)
+            px = (px_m / (pitch_length_cm / 100.0)) * width
+            py = (py_m / (pitch_width_cm / 100.0)) * height
+            team_id = trk.get("team_id")
+            is_subject = trk.get("track_id") == subject_track_id
+            
+            players.append({
+                "track_id": trk.get("track_id"),
+                "cls_name": trk.get("cls_name", "Player"),
+                "team_id": team_id,
+                "team_conf": trk.get("team_conf"),
+                "conf": trk.get("conf", 0.0),
+                "x": round(px, 2),
+                "y": round(py, 2),
+                "bbox": [
+                    max(0, int(px - 20)),
+                    max(0, int(py - 40)),
+                    min(width, int(px + 20)),
+                    min(height, int(py + 10)),
+                ] if trk.get("x1") is None else [
+                    int(trk["x1"]),
+                    int(trk["y1"]),
+                    int(trk["x2"]),
+                    int(trk["y2"]),
+                ],
+                "pitch_position": {"x": round(px_m, 2), "y": round(py_m, 2)},
+                "is_subject": is_subject,
+            })
+        
+        evt = next((e for e in events if e.get("frame_idx") == frame_idx), None)
+        frames.append({
+            "t": round(t, 4),
+            "players": players,
+            "ball": ball_xy,
+            "possession": False,
+            "event": evt.get("type") if evt else None,
+        })
     return {"frames": frames}
 
 
@@ -598,7 +661,7 @@ def analyze_video(self, job_id: str) -> dict:
                     yolo_video_path=run_output_dir / "yolo_tracking.mp4",
                     team_homography_video_path=run_output_dir / "tactical_view.mp4",
                     vid_stride=settings.frame_skip,
-                    enable_team_assignment=False,
+                    enable_team_assignment=True,
                     ball_overlay_fn=ball_overlay_fn,
                     enable_possession=True,
                     heatmap_output_dir=run_output_dir / "heatmaps",
@@ -618,26 +681,54 @@ def analyze_video(self, job_id: str) -> dict:
                     import csv as csv_mod
                     track_positions = []
                     ball_positions = []
+                    all_tracks_by_frame = {}
                     with open(csv_path, newline="", encoding="utf-8") as f:
                         reader = csv_mod.DictReader(f)
                         for row in reader:
-                            frame_idx = int(row.get("frame_idx", 0))
+                            frame_idx = int(row.get("frame", row.get("frame_idx", 0)))
                             cls_name = row.get("cls_name", "")
+                            team_id = row.get("team_id", "-1")
+                            team_conf = row.get("team_conf", "-1")
+                            conf = row.get("conf", "0")
+                            x1 = row.get("x1")
+                            y1 = row.get("y1")
+                            x2 = row.get("x2")
+                            y2 = row.get("y2")
+                            cx = row.get("cx")
+                            cy = row.get("cy")
+                            
                             if cls_name == "Ball":
-                                bx = row.get("pitch_x_cm")
-                                by = row.get("pitch_y_cm")
+                                bx = row.get("pitch_x_m")
+                                by = row.get("pitch_y_m")
                                 if bx and by:
                                     try:
                                         ball_positions.append((frame_idx, float(bx), float(by)))
                                     except ValueError:
                                         pass
-                            else:
-                                px = row.get("pitch_x_cm")
-                                py = row.get("pitch_y_cm")
+                            elif cls_name in {"Player", "Goalkeeper"}:
+                                px = row.get("pitch_x_m")
+                                py = row.get("pitch_y_m")
                                 tid = row.get("track_id")
                                 if px and py and tid:
                                     try:
                                         track_positions.append((int(tid), float(px), float(py)))
+                                        if frame_idx not in all_tracks_by_frame:
+                                            all_tracks_by_frame[frame_idx] = []
+                                        all_tracks_by_frame[frame_idx].append({
+                                            "track_id": int(tid),
+                                            "cls_name": cls_name,
+                                            "team_id": int(team_id) if team_id != "-1" else None,
+                                            "team_conf": float(team_conf) if team_conf != "-1" else None,
+                                            "conf": float(conf),
+                                            "x1": float(x1) if x1 else None,
+                                            "y1": float(y1) if y1 else None,
+                                            "x2": float(x2) if x2 else None,
+                                            "y2": float(y2) if y2 else None,
+                                            "cx": float(cx) if cx else None,
+                                            "cy": float(cy) if cy else None,
+                                            "pitch_x_m": float(px),
+                                            "pitch_y_m": float(py),
+                                        })
                                     except ValueError:
                                         pass
 
@@ -660,13 +751,14 @@ def analyze_video(self, job_id: str) -> dict:
                             formation="4-3-3",
                             position="CM",
                         )
-                        overlay_data = _build_overlay_data(
-                            subject_positions,
+                        overlay_data = _build_overlay_data_multiplayer(
+                            all_tracks_by_frame,
                             ball_positions,
                             events,
                             fps,
                             vid_width,
                             vid_height,
+                            subject_track_id=subject_track_id,
                         )
                 else:
                     warnings.append("tracks_csv_missing")

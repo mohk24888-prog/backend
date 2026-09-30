@@ -18,3 +18,4 @@ raw/
 processed/
 tmp/
 *.db
+supabase/.temp/

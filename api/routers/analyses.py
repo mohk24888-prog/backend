@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +18,7 @@ from api.schemas.footiq import (
     AnalysisTrajectoryResponse,
 )
 from db.models import Analysis as AnalysisModel, AnalysisJob as AnalysisJobModel, Player as PlayerModel, User as UserModel, HeatmapPoint as HeatmapPointModel
+from workers.tasks import analyze_video
 
 router = APIRouter()
 
@@ -31,9 +33,32 @@ async def create_analysis(
     if not player:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player not found")
 
-    analysis = AnalysisModel(player_id=payload.player_id, match_name=payload.match_name)
+    job = AnalysisJobModel(
+        video_id=payload.video_id,
+        player_id=payload.player_id,
+        status="queued",
+    )
+    db.add(job)
+    await db.flush()
+
+    analysis = AnalysisModel(
+        player_id=payload.player_id,
+        job_id=job.id,
+        match_name=payload.match_name,
+    )
     db.add(analysis)
     await db.flush()
+
+    try:
+        analyze_video.apply_async(args=[str(job.id)], queue="footiq-analysis")
+    except Exception as exc:
+        job.status = "failed"
+        job.error = f"Failed to queue analysis: {exc}"
+        db.add(job)
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to queue analysis job")
+
+    await db.commit()
     return analysis
 
 

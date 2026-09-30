@@ -1,0 +1,23 @@
+tracker_type: bytetrack
+
+# Thresholds optimized based on actual confidence distributions:
+# - Players/GK/Ref: mean ~0.87, P10 ~0.80 (high confidence)
+# - Ball: mean ~0.69, P10 ~0.41 (lower, more variable)
+track_high_thresh: 0.6        # Increased from 0.45 - reduces false tracks while keeping 98.7% of Players, 96.4% of GK
+new_track_thresh: 0.55        # Increased from 0.45 - stricter for new tracks to reduce fragmentation
+track_low_thresh: 0.1         # Keep low for ball tracking in low-confidence frames
+
+# Tracking duration
+max_time_lost: 50             # Increased from 30 - better handle occlusions (players behind others)
+track_buffer: 30              # ensure compatibility with latest Ultralytics trackers
+
+# Matching behaviour
+match_thresh: 0.75            # Increased from 0.7 - tighter matching to reduce ID switches
+fuse_score: True
+
+# Appearance / proximity heuristics
+proximity_thresh: 0.5
+appearance_thresh: 0.25
+
+# Max detections per image
+max_per_image: 200
