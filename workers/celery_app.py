@@ -11,10 +11,15 @@ celery_app = Celery(
     backend=settings.celery_result_backend,
 )
 
-celery_app.conf.broker_connection_retry_on_startup = True
-celery_app.conf.broker_connection_retry = True
-celery_app.conf.broker_connection_max_retries = 3
-celery_app.conf.broker_pool_limit = 1
+celery_app.conf.broker_connection_retry_on_startup = False
+celery_app.conf.broker_connection_retry = False
+celery_app.conf.broker_connection_max_retries = 0
+celery_app.conf.broker_pool_limit = 0
+celery_app.conf.broker_transport_options = {
+    "socket_timeout": 2,
+    "socket_connect_timeout": 2,
+    "retry_on_timeout": False,
+}
 
 celery_app.conf.task_routes = {
     "workers.tasks.analyze_video": {"queue": "analysis"},

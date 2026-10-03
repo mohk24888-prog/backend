@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 import uuid
 from typing import Annotated
 
@@ -17,10 +18,30 @@ from api.schemas.footiq import (
     AnalysisHeatmapResponse,
     AnalysisTrajectoryResponse,
 )
+from core.config import settings
 from db.models import Analysis as AnalysisModel, AnalysisJob as AnalysisJobModel, Player as PlayerModel, User as UserModel, HeatmapPoint as HeatmapPointModel
 from workers.tasks import analyze_video
 
 router = APIRouter()
+
+
+def _redis_reachable() -> bool:
+    try:
+        host = "localhost"
+        port = 6379
+        from urllib.parse import urlparse
+        parsed = urlparse(settings.celery_broker_url)
+        if parsed.hostname:
+            host = parsed.hostname
+        if parsed.port:
+            port = parsed.port
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
 
 
 @router.post("", response_model=AnalysisRead)
@@ -62,15 +83,24 @@ async def create_analysis(
     db.add(analysis)
     await db.flush()
 
-    try:
-        analyze_video.apply_async(args=[str(job.id)], queue="footiq-analysis")
-    except Exception as exc:
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    if _redis_reachable():
+        try:
+            analyze_video.apply_async(args=[str(job.id)], queue="footiq-analysis", retry=False)
+        except Exception as exc:
+            job.status = "failed"
+            job.error = f"Failed to queue analysis: {exc}"
+            db.add(job)
+            await db.flush()
+            _logger.warning("Celery task queue failed: {}", exc)
+    else:
         job.status = "failed"
-        job.error = f"Failed to queue analysis: {exc}"
+        job.error = "Redis broker not reachable - analysis task not queued"
         db.add(job)
-        await db.commit()
-        logger = __import__("logging").getLogger(__name__)
-        logger.warning("Celery task queue failed, analysis job marked as failed: {}", exc)
+        await db.flush()
+        _logger.warning("Redis not available, skipping analysis task queue")
 
     await db.flush()
     await db.commit()
@@ -84,7 +114,11 @@ async def get_analysis(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> AnalysisModel:
-    analysis = (await db.execute(select(AnalysisModel).where(AnalysisModel.id == analysis_id))).scalar_one_or_none()
+    try:
+        analysis_uuid = uuid.UUID(str(analysis_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid analysis ID")
+    analysis = (await db.execute(select(AnalysisModel).where(AnalysisModel.id == analysis_uuid))).scalar_one_or_none()
     if not analysis:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
     return analysis
@@ -96,7 +130,11 @@ async def get_analysis_overlay(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
-    analysis = (await db.execute(select(AnalysisModel).where(AnalysisModel.id == analysis_id))).scalar_one_or_none()
+    try:
+        analysis_uuid = uuid.UUID(str(analysis_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid analysis ID")
+    analysis = (await db.execute(select(AnalysisModel).where(AnalysisModel.id == analysis_uuid))).scalar_one_or_none()
     if not analysis or not analysis.overlay_data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not ready")
     return {
@@ -112,7 +150,11 @@ async def get_analysis_simulation(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
-    analysis = (await db.execute(select(AnalysisModel).where(AnalysisModel.id == analysis_id))).scalar_one_or_none()
+    try:
+        analysis_uuid = uuid.UUID(str(analysis_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid analysis ID")
+    analysis = (await db.execute(select(AnalysisModel).where(AnalysisModel.id == analysis_uuid))).scalar_one_or_none()
     if not analysis:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
     return {
@@ -127,11 +169,15 @@ async def get_analysis_heatmap(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
-    analysis = (await db.execute(select(AnalysisModel).where(AnalysisModel.id == analysis_id))).scalar_one_or_none()
+    try:
+        analysis_uuid = uuid.UUID(str(analysis_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid analysis ID")
+    analysis = (await db.execute(select(AnalysisModel).where(AnalysisModel.id == analysis_uuid))).scalar_one_or_none()
     if not analysis:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
 
-    points = (await db.execute(select(HeatmapPointModel).where(HeatmapPointModel.analysis_id == analysis_id))).scalars().all()
+    points = (await db.execute(select(HeatmapPointModel).where(HeatmapPointModel.analysis_id == analysis_uuid))).scalars().all()
 
     return {
         "analysis_id": analysis.id,
@@ -158,7 +204,11 @@ async def get_analysis_trajectory(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
-    analysis = (await db.execute(select(AnalysisModel).where(AnalysisModel.id == analysis_id))).scalar_one_or_none()
+    try:
+        analysis_uuid = uuid.UUID(str(analysis_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid analysis ID")
+    analysis = (await db.execute(select(AnalysisModel).where(AnalysisModel.id == analysis_uuid))).scalar_one_or_none()
     if not analysis:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
 
@@ -175,7 +225,11 @@ async def get_analysis_job(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> AnalysisJobModel:
-    job = (await db.execute(select(AnalysisJobModel).where(AnalysisJobModel.id == job_id))).scalar_one_or_none()
+    try:
+        job_uuid = uuid.UUID(str(job_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid job ID")
+    job = (await db.execute(select(AnalysisJobModel).where(AnalysisJobModel.id == job_uuid))).scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis job not found")
     return job
