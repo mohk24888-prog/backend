@@ -36,8 +36,11 @@ async def upload_video(
         player = (await db.execute(select(PlayerModel).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
 
     if not player:
-        try:
+        player_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"player:{player_id}")
+        player = (await db.execute(select(PlayerModel).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
+        if not player:
             player = PlayerModel(
+                id=player_uuid,
                 first_name="Demo",
                 last_name=player_id,
                 position="Forward",
@@ -45,19 +48,6 @@ async def upload_video(
             )
             db.add(player)
             await db.flush()
-        except Exception:
-            player_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"player:{player_id}")
-            player = (await db.execute(select(PlayerModel).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
-            if not player:
-                player = PlayerModel(
-                    id=player_uuid,
-                    first_name="Demo",
-                    last_name=player_id,
-                    position="Forward",
-                    nationality="Algeria",
-                )
-                db.add(player)
-                await db.flush()
 
     ext = Path(file.filename).suffix.lower().lstrip(".")
     allowed = {e.strip() for e in settings.allowed_video_extensions.split(",") if e.strip()}
