@@ -53,6 +53,11 @@ def _is_db_unavailable(exc: BaseException) -> bool:
         return True
     if isinstance(exc, SQLAlchemyError):
         return True
+    if isinstance(exc, ConnectionError):
+        return True
+    exc_str = str(exc).lower()
+    if any(kw in exc_str for kw in ['connection', 'connect', 'timeout', 'gaierror', 'resolve', 'host', 'network']):
+        return True
     return False
 
 
