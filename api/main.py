@@ -38,7 +38,7 @@ from api.routers import (
 )
 from core.config import settings
 from core.logging_config import setup_logging, log_request
-from db.session import init_db
+from db.session import init_db, async_session_factory
 
 logger = setup_logging()
 
@@ -266,9 +266,33 @@ app.include_router(cv.router, prefix=f"{settings.api_v1_str}/cv", tags=["CV"])
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "version": settings.version, "device": settings.device, "commit": "064ad3f"}
+    return {"status": "ok", "version": settings.version, "device": settings.device, "commit": "7e24c71"}
 
 
 @app.get("/health/ready")
 async def health_ready() -> dict:
-    return {"status": "ready", "version": settings.version, "commit": "064ad3f"}
+    return {"status": "ready", "version": settings.version, "commit": "7e24c71"}
+
+
+@app.get("/health/db")
+async def health_db() -> dict:
+    """Report whether the configured Postgres is actually reachable.
+
+    init_db() only logs a warning on failure, so the API boots even when the
+    database is unreachable and every DB-backed route then 500s. This endpoint
+    makes that failure mode visible instead of guessing.
+    """
+    from sqlalchemy import text
+
+    safe_target = settings.database_url.split("@")[-1]
+    try:
+        async with async_session_factory() as session:
+            await session.execute(text("SELECT 1"))
+        return {"database": "ok", "target": safe_target}
+    except Exception as exc:
+        return {
+            "database": "unreachable",
+            "target": safe_target,
+            "error": type(exc).__name__,
+            "detail": str(exc)[:200],
+        }
