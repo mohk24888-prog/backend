@@ -76,19 +76,19 @@ async def list_players(
     offset: int = Query(default=0, ge=0),
 ) -> list[PlayerModel]:
     try:
-    query = select(PlayerModel).options(defer(PlayerModel.verification_status))
-    if q:
-        query = query.where(
-            or_(
-                PlayerModel.first_name.ilike(f"%{q}%"),
-                PlayerModel.last_name.ilike(f"%{q}%"),
-                PlayerModel.academy.ilike(f"%{q}%"),
+        query = select(PlayerModel).options(defer(PlayerModel.verification_status))
+        if q:
+            query = query.where(
+                or_(
+                    PlayerModel.first_name.ilike(f"%{q}%"),
+                    PlayerModel.last_name.ilike(f"%{q}%"),
+                    PlayerModel.academy.ilike(f"%{q}%"),
+                )
             )
-        )
-    if position:
-        query = query.where(PlayerModel.position == position)
+        if position:
+            query = query.where(PlayerModel.position == position)
 
-    result = await db.execute(query.limit(limit).offset(offset))
-    return result.scalars().all()
+        result = await db.execute(query.limit(limit).offset(offset))
+        return result.scalars().all()
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to list players: {exc}")
