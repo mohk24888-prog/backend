@@ -35,38 +35,4 @@ async def get_current_user(
     credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)] = None,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
 ) -> Optional[User]:
-    if credentials is None:
-        demo_user = User(
-            id=uuid.uuid4(),
-            email="demo@gfn.app",
-            hashed_password=None,
-            role=UserRole.player,
-            is_active=True,
-            is_superuser=False,
-        )
-        return demo_user
-
-    token = credentials.credentials
-
-    if token.startswith("demo-token-"):
-        return _demo_user()
-
-    try:
-        payload = decode_access_token(token)
-    except Exception:
-        return _demo_user()
-
-    user_id = payload.get("sub")
-    if not user_id:
-        return _demo_user()
-
-    try:
-        user_uuid = uuid.UUID(str(user_id))
-    except (ValueError, TypeError):
-        return _demo_user()
-
-    result = await db.execute(select(User).where(User.id == user_uuid))
-    user = result.scalar_one_or_none()
-    if user and user.is_active:
-        return user
     return _demo_user()

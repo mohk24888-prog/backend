@@ -52,23 +52,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 async def _seed_demo_data():
-    """Seed demo players so the Flutter app can upload videos for them."""
+    """Seed demo players, video, and analysis so the Flutter app has real data for the demo."""
     try:
         from db.session import async_session_factory
-        from db.models import Player as PlayerModel
+        from db.models import Player as PlayerModel, VideoUpload as VideoUploadModel, AnalysisJob as AnalysisJobModel, Analysis as AnalysisModel
+        from db.models import AnalysisStatus
 
         demo_players = [
             {"id_str": "dz1", "first_name": "Riyad", "last_name": "Mahrez", "position": "Right Winger", "nationality": "Algeria"},
             {"id_str": "dz2", "first_name": "Baghdad", "last_name": "Bounedjah", "position": "Striker", "nationality": "Algeria"},
-            {"id_str": "dz3", "first_name": "Yacine", "last_name": "Brahimi", "position": "Attacking Midfielder", "nationality": "Algeria"},
-            {"id_str": "dz4", "first_name": "Aissa", "last_name": "Mandi", "position": "Center Back", "nationality": "Algeria"},
-            {"id_str": "dz5", "first_name": "Ramy", "last_name": "Bensebaini", "position": "Left Back", "nationality": "Algeria"},
-            {"id_str": "dz6", "first_name": "Ismael", "last_name": "Bennacer", "position": "Central Midfielder", "nationality": "Algeria"},
         ]
 
         async with async_session_factory() as session:
+            player_ids = {}
             for p in demo_players:
                 pid = uuid.uuid5(uuid.NAMESPACE_DNS, f"player:{p['id_str']}")
+                player_ids[p['id_str']] = pid
                 existing = await session.get(PlayerModel, pid)
                 if not existing:
                     player = PlayerModel(
@@ -79,10 +78,97 @@ async def _seed_demo_data():
                         nationality=p["nationality"],
                     )
                     session.add(player)
+
+            # Seed one completed demo analysis for dz1 if none exists
+            dz1_id = player_ids["dz1"]
+            existing_analysis = (await session.execute(
+                select(AnalysisModel).where(AnalysisModel.player_id == dz1_id)
+            )).scalar_one_or_none()
+
+            if not existing_analysis:
+                from datetime import datetime, timezone
+                from pathlib import Path
+
+                raw_dir = Path(settings.raw_dir)
+                raw_dir.mkdir(parents=True, exist_ok=True)
+                demo_video_path = raw_dir / "dz1" / "demo_match.mp4"
+                demo_video_path.parent.mkdir(parents=True, exist_ok=True)
+                demo_video_path.write_bytes(b"demo video content")
+
+                video = VideoUploadModel(
+                    player_id=dz1_id,
+                    filename="demo_match.mp4",
+                    storage_path=str(demo_video_path),
+                    public_url=f"/static/dz1/demo_match.mp4",
+                    mime_type="video/mp4",
+                    size_bytes=123456,
+                    match_name="Demo Match",
+                )
+                session.add(video)
+                await session.flush()
+
+                job = AnalysisJobModel(
+                    video_id=video.id,
+                    player_id=dz1_id,
+                    status=AnalysisStatus.completed,
+                    worker="local-seed",
+                    started_at=datetime.now(timezone.utc),
+                    finished_at=datetime.now(timezone.utc),
+                )
+                session.add(job)
+                await session.flush()
+
+                analysis = AnalysisModel(
+                    player_id=dz1_id,
+                    job_id=job.id,
+                    video_id=video.id,
+                    match_name="Demo Match",
+                    date=datetime.now(timezone.utc),
+                    overall_rating=87.5,
+                    technical=88.0,
+                    tactical=86.5,
+                    physical=89.0,
+                    mental=87.0,
+                    summary="Exceptional match performance with outstanding positioning and decision making.",
+                    strengths=["Speed", "Dribbling", "Vision"],
+                    development_areas=["Defensive positioning", "Aerial duels"],
+                    overlay_data={
+                        "frames": [
+                            {
+                                "t": 0.0,
+                                "players": [
+                                    {"x": 640, "y": 360, "bbox": [620, 340, 660, 380], "is_subject": True, "track_id": 1, "team_id": 0}
+                                ],
+                                "ball": {"x": 645, "y": 365},
+                                "event": None,
+                                "speed_kmh": 28.5,
+                            },
+                            {
+                                "t": 1.0,
+                                "players": [
+                                    {"x": 650, "y": 355, "bbox": [630, 335, 670, 375], "is_subject": True, "track_id": 1, "team_id": 0}
+                                ],
+                                "ball": {"x": 655, "y": 360},
+                                "event": {"type": "Progressive Carry", "player": "R. Mahrez", "minute": 23},
+                                "speed_kmh": 31.2,
+                            },
+                        ]
+                    },
+                    simulation_data={"scenario": "1v1", "success_rate": 0.78},
+                    video_url=f"/static/dz1/demo_match.mp4",
+                    analysis_duration_s=12.5,
+                    cv_repo_used="local-seed",
+                    subject_track_id=1,
+                    selection_method="manual",
+                )
+                session.add(analysis)
+                await session.commit()
+                logger.info("Demo analysis seeded for dz1")
+
             await session.commit()
             logger.info("Demo players seeded successfully")
     except Exception as e:
-        logger.warning("Demo player seeding failed: {}", e)
+        logger.warning("Demo seeding failed: {}", e)
 
 
 app = FastAPI(
