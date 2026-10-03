@@ -7,7 +7,6 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, or_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import defer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.deps import get_db, get_current_user
@@ -91,7 +90,7 @@ async def get_player(
                 return p
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player not found")
     try:
-        player = (await db.execute(select(PlayerModel).options(defer(PlayerModel.verification_status)).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
+        player = (await db.execute(select(PlayerModel).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
     except Exception as exc:
         if _is_db_unavailable(exc):
             for p in _DEMO_PLAYERS:
@@ -140,7 +139,7 @@ async def list_players(
     if db is None:
         return _DEMO_PLAYERS[:limit]
     try:
-        query = select(PlayerModel).options(defer(PlayerModel.verification_status))
+        query = select(PlayerModel)
         if q:
             query = query.where(
                 or_(
