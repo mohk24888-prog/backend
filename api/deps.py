@@ -27,12 +27,12 @@ def _demo_user() -> User:
     )
 
 
-async def get_db() -> AsyncGenerator[Optional[AsyncSession], None]:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     try:
         async for session in get_session():
             yield session
-    except (SQLAlchemyError, OSError):
-        yield None
+    except (SQLAlchemyError, OSError) as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Database unavailable: {exc}")
 
 
 async def get_current_user(

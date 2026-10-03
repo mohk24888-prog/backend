@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import socket
 import uuid
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -94,13 +94,9 @@ _DEMO_ANALYSIS = {
 @router.post("", response_model=AnalysisRead)
 async def create_analysis(
     payload: AnalysisCreate,
-    db: Annotated[Optional[AsyncSession], Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> AnalysisModel:
-    if db is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
-
-    try:
         player_uuid = uuid.UUID(str(payload.player_id))
     except (ValueError, TypeError):
         player_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"player:{payload.player_id}")
@@ -161,11 +157,9 @@ async def create_analysis(
 @router.get("/{analysis_id}", response_model=AnalysisRead)
 async def get_analysis(
     analysis_id: str,
-    db: Annotated[Optional[AsyncSession], Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> AnalysisModel:
-    if db is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     try:
         analysis_uuid = uuid.UUID(str(analysis_id))
     except (ValueError, TypeError):
@@ -234,15 +228,9 @@ def _is_valid_uuid(value: str) -> bool:
 @router.get("/{analysis_id}/overlay", response_model=AnalysisOverlayResponse)
 async def get_analysis_overlay(
     analysis_id: str,
-    db: Annotated[Optional[AsyncSession], Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
-    if db is None:
-        return {
-            "analysis_id": uuid.UUID(analysis_id) if _is_valid_uuid(analysis_id) else uuid.uuid4(),
-            "overlay_data": _DEMO_ANALYSIS["overlay_data"],
-            "subject_track_id": _DEMO_ANALYSIS["subject_track_id"],
-        }
     try:
         analysis_uuid = uuid.UUID(str(analysis_id))
     except (ValueError, TypeError):
@@ -260,14 +248,9 @@ async def get_analysis_overlay(
 @router.get("/{analysis_id}/simulation", response_model=AnalysisSimulationResponse)
 async def get_analysis_simulation(
     analysis_id: str,
-    db: Annotated[Optional[AsyncSession], Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
-    if db is None:
-        return {
-            "analysis_id": uuid.UUID(analysis_id) if _is_valid_uuid(analysis_id) else uuid.uuid4(),
-            "simulation": _DEMO_ANALYSIS["simulation_data"],
-        }
     try:
         analysis_uuid = uuid.UUID(str(analysis_id))
     except (ValueError, TypeError):
@@ -284,15 +267,9 @@ async def get_analysis_simulation(
 @router.get("/{analysis_id}/heatmap", response_model=AnalysisHeatmapResponse)
 async def get_analysis_heatmap(
     analysis_id: str,
-    db: Annotated[Optional[AsyncSession], Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
-    if db is None:
-        return {
-            "analysis_id": uuid.UUID(analysis_id) if _is_valid_uuid(analysis_id) else uuid.uuid4(),
-            "points": [],
-            "image_url": None,
-        }
     try:
         analysis_uuid = uuid.UUID(str(analysis_id))
     except (ValueError, TypeError):
@@ -325,15 +302,9 @@ async def get_analysis_heatmap(
 @router.get("/{analysis_id}/trajectory", response_model=AnalysisTrajectoryResponse)
 async def get_analysis_trajectory(
     analysis_id: str,
-    db: Annotated[Optional[AsyncSession], Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
-    if db is None:
-        return {
-            "analysis_id": uuid.UUID(analysis_id) if _is_valid_uuid(analysis_id) else uuid.uuid4(),
-            "points": [],
-            "image_url": None,
-        }
     try:
         analysis_uuid = uuid.UUID(str(analysis_id))
     except (ValueError, TypeError):
@@ -352,11 +323,9 @@ async def get_analysis_trajectory(
 @router.get("/jobs/{job_id}", response_model=AnalysisJobRead)
 async def get_analysis_job(
     job_id: str,
-    db: Annotated[Optional[AsyncSession], Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> AnalysisJobModel:
-    if db is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     try:
         job_uuid = uuid.UUID(str(job_id))
     except (ValueError, TypeError):
