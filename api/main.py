@@ -5,13 +5,13 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import Response, JSONResponse
 
 from api.routers import (
     auth,
@@ -178,6 +178,47 @@ app = FastAPI(
     version=settings.version,
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: Exception):
+    logger.warning("Database error on %s: %s", request.url.path, exc)
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Database unavailable", "path": str(request.url.path)},
+    )
+
+
+@app.exception_handler(OSError)
+async def os_exception_handler(request: Request, exc: Exception):
+    exc_str = str(exc).lower()
+    if any(kw in exc_str for kw in ['connection', 'connect', 'timeout', 'gaierror', 'resolve', 'database']):
+        logger.warning("OS/database error on %s: %s", request.url.path, exc)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "Database unavailable", "path": str(request.url.path)},
+        )
+    logger.error("Unhandled OS error on %s: %s", request.url.path, exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)[:200], "path": str(request.url.path)},
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    exc_str = str(exc).lower()
+    if any(kw in exc_str for kw in ['connection', 'connect', 'timeout', 'gaierror', 'resolve', 'database']):
+        logger.warning("Database-related error on %s: %s", request.url.path, exc)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "Database unavailable", "path": str(request.url.path)},
+        )
+    logger.error("Unhandled exception on %s: %s", request.url.path, exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)[:200], "path": str(request.url.path)},
+    )
 
 app.add_middleware(
     CORSMiddleware,
