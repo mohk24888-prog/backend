@@ -39,7 +39,11 @@ async def get_player(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> PlayerModel:
-    player = (await db.execute(select(PlayerModel).where(PlayerModel.id == _uuid(player_id)))).scalar_one_or_none()
+    try:
+        player_uuid = uuid.UUID(str(player_id))
+    except (ValueError, TypeError):
+        player_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"player:{player_id}")
+    player = (await db.execute(select(PlayerModel).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
     if not player:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player not found")
     return player

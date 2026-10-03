@@ -29,11 +29,35 @@ async def upload_video(
     try:
         player_uuid = uuid.UUID(str(player_id))
     except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid player id")
+        player_uuid = None
 
-    player = (await db.execute(select(PlayerModel).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
+    player = None
+    if player_uuid is not None:
+        player = (await db.execute(select(PlayerModel).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
+
     if not player:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player not found")
+        try:
+            player = PlayerModel(
+                first_name="Demo",
+                last_name=player_id,
+                position="Forward",
+                nationality="Algeria",
+            )
+            db.add(player)
+            await db.flush()
+        except Exception:
+            player_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"player:{player_id}")
+            player = (await db.execute(select(PlayerModel).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
+            if not player:
+                player = PlayerModel(
+                    id=player_uuid,
+                    first_name="Demo",
+                    last_name=player_id,
+                    position="Forward",
+                    nationality="Algeria",
+                )
+                db.add(player)
+                await db.flush()
 
     ext = Path(file.filename).suffix.lower().lstrip(".")
     allowed = {e.strip() for e in settings.allowed_video_extensions.split(",") if e.strip()}

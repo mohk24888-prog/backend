@@ -217,7 +217,7 @@ class VideoUrlResponse(BaseModel):
 
 class AnalysisCreate(BaseModel):
     video_id: uuid.UUID
-    player_id: uuid.UUID
+    player_id: str
     match_name: Optional[str] = None
     test_session_id: Optional[uuid.UUID] = None
 

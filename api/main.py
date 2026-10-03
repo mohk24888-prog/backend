@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -45,8 +46,43 @@ logger = setup_logging()
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("FootIQ API starting up")
     await init_db()
+    await _seed_demo_data()
     yield
     logger.info("FootIQ API shutting down")
+
+
+async def _seed_demo_data():
+    """Seed demo players so the Flutter app can upload videos for them."""
+    try:
+        from db.session import async_session_factory
+        from db.models import Player as PlayerModel
+
+        demo_players = [
+            {"id_str": "dz1", "first_name": "Riyad", "last_name": "Mahrez", "position": "Right Winger", "nationality": "Algeria"},
+            {"id_str": "dz2", "first_name": "Baghdad", "last_name": "Bounedjah", "position": "Striker", "nationality": "Algeria"},
+            {"id_str": "dz3", "first_name": "Yacine", "last_name": "Brahimi", "position": "Attacking Midfielder", "nationality": "Algeria"},
+            {"id_str": "dz4", "first_name": "Aissa", "last_name": "Mandi", "position": "Center Back", "nationality": "Algeria"},
+            {"id_str": "dz5", "first_name": "Ramy", "last_name": "Bensebaini", "position": "Left Back", "nationality": "Algeria"},
+            {"id_str": "dz6", "first_name": "Ismael", "last_name": "Bennacer", "position": "Central Midfielder", "nationality": "Algeria"},
+        ]
+
+        async with async_session_factory() as session:
+            for p in demo_players:
+                pid = uuid.uuid5(uuid.NAMESPACE_DNS, f"player:{p['id_str']}")
+                existing = await session.get(PlayerModel, pid)
+                if not existing:
+                    player = PlayerModel(
+                        id=pid,
+                        first_name=p["first_name"],
+                        last_name=p["last_name"],
+                        position=p["position"],
+                        nationality=p["nationality"],
+                    )
+                    session.add(player)
+            await session.commit()
+            logger.info("Demo players seeded successfully")
+    except Exception as e:
+        logger.warning("Demo player seeding failed: {}", e)
 
 
 app = FastAPI(
