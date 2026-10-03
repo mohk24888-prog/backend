@@ -15,6 +15,17 @@ from core.security.auth import decode_access_token
 security = HTTPBearer(auto_error=False)
 
 
+def _demo_user() -> User:
+    return User(
+        id=uuid.uuid4(),
+        email="demo@gfn.app",
+        hashed_password=None,
+        role=UserRole.player,
+        is_active=True,
+        is_superuser=False,
+    )
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async for session in get_session():
         yield session
