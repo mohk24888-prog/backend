@@ -69,9 +69,12 @@ async def create_analysis(
         job.error = f"Failed to queue analysis: {exc}"
         db.add(job)
         await db.commit()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to queue analysis job")
+        logger = __import__("logging").getLogger(__name__)
+        logger.warning("Celery task queue failed, analysis job marked as failed: {}", exc)
 
+    await db.flush()
     await db.commit()
+    await db.refresh(analysis)
     return analysis
 
 
