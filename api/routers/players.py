@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, defer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.deps import get_db, get_current_user
@@ -43,7 +43,7 @@ async def get_player(
         player_uuid = uuid.UUID(str(player_id))
     except (ValueError, TypeError):
         player_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"player:{player_id}")
-    player = (await db.execute(select(PlayerModel).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
+    player = (await db.execute(select(PlayerModel).options(defer(PlayerModel.verification_status)).where(PlayerModel.id == player_uuid))).scalar_one_or_none()
     if not player:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Player not found")
     return player
@@ -75,7 +75,8 @@ async def list_players(
     limit: int = Query(default=20, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> list[PlayerModel]:
-    query = select(PlayerModel)
+    try:
+    query = select(PlayerModel).options(defer(PlayerModel.verification_status))
     if q:
         query = query.where(
             or_(
@@ -89,3 +90,5 @@ async def list_players(
 
     result = await db.execute(query.limit(limit).offset(offset))
     return result.scalars().all()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to list players: {exc}")

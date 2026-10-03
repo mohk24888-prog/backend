@@ -164,9 +164,7 @@ class Player(Base):
     physical_rating: Mapped[Optional[float]] = mapped_column(Float)
     mental_rating: Mapped[Optional[float]] = mapped_column(Float)
 
-    verification_status: Mapped[VerificationStatus] = mapped_column(
-        SQLEnum(VerificationStatus, name="verification_status"), default=VerificationStatus.unverified
-    )
+    verification_status: Mapped[str] = mapped_column(String(50), default="unverified", server_default="unverified")
     profile_image_url: Mapped[Optional[str]] = mapped_column(String(500))
     strengths: Mapped[Optional[list]] = mapped_column(JSON)
     development_areas: Mapped[Optional[list]] = mapped_column(JSON)

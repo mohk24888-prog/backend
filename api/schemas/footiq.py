@@ -142,7 +142,7 @@ class PlayerRead(TimestampedModel):
     tactical_rating: Optional[float] = None
     physical_rating: Optional[float] = None
     mental_rating: Optional[float] = None
-    verification_status: str
+    verification_status: Optional[str] = "unverified"
     profile_image_url: Optional[str] = None
     strengths: Optional[list[str]] = None
     development_areas: Optional[list[str]] = None
