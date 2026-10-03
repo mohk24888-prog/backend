@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Annotated, AsyncGenerator, Optional
 
@@ -12,6 +13,8 @@ from sqlalchemy import select
 from db.session import get_session
 from db.models import User, UserRole
 from core.security.auth import decode_access_token
+
+logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
 
@@ -28,11 +31,8 @@ def _demo_user() -> User:
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    try:
-        async for session in get_session():
-            yield session
-    except (SQLAlchemyError, OSError) as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Database unavailable: {exc}")
+    async for session in get_session():
+        yield session
 
 
 async def get_current_user(

@@ -107,9 +107,11 @@ async def upload_video(
 @router.get("/{video_id}/url", response_model=VideoUrlResponse)
 async def get_video_url(
     video_id: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[Optional[AsyncSession], Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
+    if db is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     try:
         video_uuid = uuid.UUID(str(video_id))
     except (ValueError, TypeError):
