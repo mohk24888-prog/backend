@@ -266,9 +266,9 @@ app.include_router(cv.router, prefix=f"{settings.api_v1_str}/cv", tags=["CV"])
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "version": settings.version, "device": settings.device}
+    return {"status": "ok", "version": settings.version, "device": settings.device, "commit": "064ad3f"}
 
 
 @app.get("/health/ready")
 async def health_ready() -> dict:
-    return {"status": "ready", "version": settings.version}
+    return {"status": "ready", "version": settings.version, "commit": "064ad3f"}
