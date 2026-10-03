@@ -13,6 +13,7 @@ from api.deps import get_db, get_current_user
 from api.schemas.footiq import VideoUploadCreate, VideoUploadRead, VideoUrlResponse
 from core.config import settings
 from db.models import VideoUpload as VideoUploadModel, Player as PlayerModel, User as UserModel
+from services.storage.supabase_client import get_supabase_service
 
 router = APIRouter()
 
@@ -49,7 +50,24 @@ async def upload_video(
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(contents)
 
-    public_url = f"/static/{storage_path}"
+    public_url = None
+    storage_key = f"{player_id}/{uuid.uuid4().hex}{Path(file.filename).suffix}"
+    try:
+        supabase = get_supabase_service()
+        from io import BytesIO
+        bio = BytesIO(contents)
+        supabase.storage.from_(settings.storage_bucket_videos).upload(
+            storage_key,
+            bio.read(),
+        )
+        resp = supabase.storage.from_(settings.storage_bucket_videos).get_public_url(storage_key)
+        public_url = resp.get("public_url") or resp.get("url")
+    except Exception as exc:
+        from core.logging_config import logger
+        logger.warning("Supabase upload failed, falling back to static: {}", exc)
+
+    if not public_url:
+        public_url = f"/static/{storage_path}"
 
     video = VideoUploadModel(
         player_id=player_uuid,
@@ -64,6 +82,8 @@ async def upload_video(
     )
     db.add(video)
     await db.flush()
+    await db.commit()
+    await db.refresh(video)
     return video
 
 

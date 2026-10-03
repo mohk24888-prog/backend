@@ -544,6 +544,8 @@ def _build_simulation(
 
 @celery_app.task(name="workers.tasks.analyze_video", bind=True)
 def analyze_video(self, job_id: str) -> dict:
+    import time
+    _task_start = time.time()
     session_gen = get_session()
     session = next(session_gen)
     job = None
@@ -595,6 +597,20 @@ def analyze_video(self, job_id: str) -> dict:
 
         if _CV_AVAILABLE:
             try:
+                import cv2 as _cv2
+                _cap = _cv2.VideoCapture(str(video_path))
+                if _cap.isOpened():
+                    _w = int(_cap.get(_cv2.CAP_PROP_FRAME_WIDTH))
+                    _h = int(_cap.get(_cv2.CAP_PROP_FRAME_HEIGHT))
+                    _f = float(_cap.get(_cv2.CAP_PROP_FPS))
+                    if _w > 0:
+                        vid_width = _w
+                    if _h > 0:
+                        vid_height = _h
+                    if _f > 0:
+                        fps = _f
+                _cap.release()
+
                 job.status = AnalysisStatus.detecting
                 session.add(job)
                 session.commit()
@@ -851,6 +867,11 @@ def analyze_video(self, job_id: str) -> dict:
         session.add(job)
         session.commit()
 
+        _max_speed_kmh = metrics.get("max_speed_kmh")
+        _avg_speed_kmh = metrics.get("avg_speed_kmh")
+        _max_speed_ms = (_max_speed_kmh / 3.6) if _max_speed_kmh is not None else None
+        _avg_speed_ms = (_avg_speed_kmh / 3.6) if _avg_speed_kmh is not None else None
+
         analysis = Analysis(
             player_id=job.player_id,
             job_id=job.id,
@@ -870,6 +891,8 @@ def analyze_video(self, job_id: str) -> dict:
             pipeline_warnings=warnings if warnings else None,
             overlay_data=overlay_data if overlay_data.get("frames") else None,
             simulation_data=simulation if simulation else None,
+            video_url=video.public_url,
+            analysis_duration_s=round(time.time() - _task_start, 2),
         )
         session.add(analysis)
         session.flush()
@@ -901,8 +924,8 @@ def analyze_video(self, job_id: str) -> dict:
                 analysis_id=analysis.id,
                 player_id=job.player_id,
                 total_distance_m=metrics.get("total_distance_m"),
-                max_speed_ms=metrics.get("max_speed_kmh", 0) / 3.6,
-                avg_speed_ms=metrics.get("avg_speed_kmh", 0) / 3.6,
+                max_speed_ms=_max_speed_ms,
+                avg_speed_ms=_avg_speed_ms,
                 sprint_count=None,
                 hi_run_count=None,
                 acceleration_profile=metrics,
