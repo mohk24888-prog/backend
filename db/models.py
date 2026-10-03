@@ -242,6 +242,7 @@ class VideoUpload(Base):
     height: Mapped[Optional[int]] = mapped_column(Integer)
     match_name: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     player: Mapped[Player] = relationship("Player", back_populates="videos")
     analysis_jobs: Mapped[list[AnalysisJob]] = relationship("AnalysisJob", back_populates="video")
