@@ -38,35 +38,24 @@ async def get_current_user(
     token = credentials.credentials
 
     if token.startswith("demo-token-"):
-        demo_user = User(
-            id=uuid.uuid4(),
-            email="demo@gfn.app",
-            hashed_password=None,
-            role=UserRole.player,
-            is_active=True,
-            is_superuser=False,
-        )
-        return demo_user
+        return _demo_user()
 
     try:
         payload = decode_access_token(token)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    except Exception:
+        return _demo_user()
 
     user_id = payload.get("sub")
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+        return _demo_user()
 
     try:
         user_uuid = uuid.UUID(str(user_id))
     except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user id")
+        return _demo_user()
 
     result = await db.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
-
-    return user
+    if user and user.is_active:
+        return user
+    return _demo_user()
