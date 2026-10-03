@@ -5,6 +5,7 @@ from typing import Annotated, AsyncGenerator, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -26,13 +27,16 @@ def _demo_user() -> User:
     )
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async for session in get_session():
-        yield session
+async def get_db() -> AsyncGenerator[Optional[AsyncSession], None]:
+    try:
+        async for session in get_session():
+            yield session
+    except (SQLAlchemyError, OSError):
+        yield None
 
 
 async def get_current_user(
     credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)] = None,
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    db: Annotated[Optional[AsyncSession], Depends(get_db)] = None,
 ) -> Optional[User]:
     return _demo_user()

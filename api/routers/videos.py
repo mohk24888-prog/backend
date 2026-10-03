@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import uuid
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy import select
@@ -23,9 +23,12 @@ async def upload_video(
     player_id: str = Form(...),
     match_name: str | None = Form(default=None),
     file: UploadFile = File(...),
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    db: Annotated[Optional[AsyncSession], Depends(get_db)] = None,
     current_user: Annotated[UserModel, Depends(get_current_user)] = None,
 ) -> VideoUploadModel:
+    if db is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+
     try:
         player_uuid = uuid.UUID(str(player_id))
     except (ValueError, TypeError):

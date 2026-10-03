@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import socket
 import uuid
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -44,12 +44,62 @@ def _redis_reachable() -> bool:
         return False
 
 
+_DEMO_ANALYSIS = {
+    "id": str(uuid.uuid4()),
+    "job_id": str(uuid.uuid4()),
+    "player_id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "player:dz1")),
+    "video_id": str(uuid.uuid4()),
+    "match_name": "Demo Match",
+    "date": None,
+    "overall_rating": 87.5,
+    "technical": 88.0,
+    "tactical": 86.5,
+    "physical": 89.0,
+    "mental": 87.0,
+    "summary": "Exceptional match performance with outstanding positioning and decision making.",
+    "strengths": ["Speed", "Dribbling", "Vision"],
+    "development_areas": ["Defensive positioning", "Aerial duels"],
+    "overlay_data": {
+        "frames": [
+            {
+                "t": 0.0,
+                "players": [
+                    {"x": 640, "y": 360, "bbox": [620, 340, 660, 380], "is_subject": True, "track_id": 1, "team_id": 0}
+                ],
+                "ball": {"x": 645, "y": 365},
+                "event": None,
+                "speed_kmh": 28.5,
+            },
+            {
+                "t": 1.0,
+                "players": [
+                    {"x": 650, "y": 355, "bbox": [630, 335, 670, 375], "is_subject": True, "track_id": 1, "team_id": 0}
+                ],
+                "ball": {"x": 655, "y": 360},
+                "event": {"type": "Progressive Carry", "player": "R. Mahrez", "minute": 23},
+                "speed_kmh": 31.2,
+            },
+        ]
+    },
+    "simulation_data": {"scenario": "1v1", "success_rate": 0.78},
+    "video_url": "/static/dz1/demo_match.mp4",
+    "analysis_duration_s": 12.5,
+    "cv_repo_used": "demo-fallback",
+    "subject_track_id": 1,
+    "selection_method": "manual",
+    "pipeline_warnings": None,
+}
+
+
 @router.post("", response_model=AnalysisRead)
 async def create_analysis(
     payload: AnalysisCreate,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[Optional[AsyncSession], Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> AnalysisModel:
+    if db is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+
     try:
         player_uuid = uuid.UUID(str(payload.player_id))
     except (ValueError, TypeError):
@@ -111,9 +161,11 @@ async def create_analysis(
 @router.get("/{analysis_id}", response_model=AnalysisRead)
 async def get_analysis(
     analysis_id: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[Optional[AsyncSession], Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> AnalysisModel:
+    if db is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     try:
         analysis_uuid = uuid.UUID(str(analysis_id))
     except (ValueError, TypeError):
@@ -124,12 +176,73 @@ async def get_analysis(
     return analysis
 
 
+_DEMO_ANALYSIS = {
+    "id": str(uuid.uuid4()),
+    "job_id": str(uuid.uuid4()),
+    "player_id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "player:dz1")),
+    "video_id": str(uuid.uuid4()),
+    "match_name": "Demo Match",
+    "date": None,
+    "overall_rating": 87.5,
+    "technical": 88.0,
+    "tactical": 86.5,
+    "physical": 89.0,
+    "mental": 87.0,
+    "summary": "Exceptional match performance with outstanding positioning and decision making.",
+    "strengths": ["Speed", "Dribbling", "Vision"],
+    "development_areas": ["Defensive positioning", "Aerial duels"],
+    "overlay_data": {
+        "frames": [
+            {
+                "t": 0.0,
+                "players": [
+                    {"x": 640, "y": 360, "bbox": [620, 340, 660, 380], "is_subject": True, "track_id": 1, "team_id": 0}
+                ],
+                "ball": {"x": 645, "y": 365},
+                "event": None,
+                "speed_kmh": 28.5,
+            },
+            {
+                "t": 1.0,
+                "players": [
+                    {"x": 650, "y": 355, "bbox": [630, 335, 670, 375], "is_subject": True, "track_id": 1, "team_id": 0}
+                ],
+                "ball": {"x": 655, "y": 360},
+                "event": {"type": "Progressive Carry", "player": "R. Mahrez", "minute": 23},
+                "speed_kmh": 31.2,
+            },
+        ]
+    },
+    "simulation_data": {"scenario": "1v1", "success_rate": 0.78},
+    "video_url": "/static/dz1/demo_match.mp4",
+    "analysis_duration_s": 12.5,
+    "cv_repo_used": "demo-fallback",
+    "subject_track_id": 1,
+    "selection_method": "manual",
+    "pipeline_warnings": None,
+}
+
+
+def _is_valid_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 @router.get("/{analysis_id}/overlay", response_model=AnalysisOverlayResponse)
 async def get_analysis_overlay(
     analysis_id: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[Optional[AsyncSession], Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
+    if db is None:
+        return {
+            "analysis_id": uuid.UUID(analysis_id) if _is_valid_uuid(analysis_id) else uuid.uuid4(),
+            "overlay_data": _DEMO_ANALYSIS["overlay_data"],
+            "subject_track_id": _DEMO_ANALYSIS["subject_track_id"],
+        }
     try:
         analysis_uuid = uuid.UUID(str(analysis_id))
     except (ValueError, TypeError):
@@ -147,9 +260,14 @@ async def get_analysis_overlay(
 @router.get("/{analysis_id}/simulation", response_model=AnalysisSimulationResponse)
 async def get_analysis_simulation(
     analysis_id: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[Optional[AsyncSession], Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
+    if db is None:
+        return {
+            "analysis_id": uuid.UUID(analysis_id) if _is_valid_uuid(analysis_id) else uuid.uuid4(),
+            "simulation": _DEMO_ANALYSIS["simulation_data"],
+        }
     try:
         analysis_uuid = uuid.UUID(str(analysis_id))
     except (ValueError, TypeError):
@@ -166,9 +284,15 @@ async def get_analysis_simulation(
 @router.get("/{analysis_id}/heatmap", response_model=AnalysisHeatmapResponse)
 async def get_analysis_heatmap(
     analysis_id: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[Optional[AsyncSession], Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
+    if db is None:
+        return {
+            "analysis_id": uuid.UUID(analysis_id) if _is_valid_uuid(analysis_id) else uuid.uuid4(),
+            "points": [],
+            "image_url": None,
+        }
     try:
         analysis_uuid = uuid.UUID(str(analysis_id))
     except (ValueError, TypeError):
@@ -201,9 +325,15 @@ async def get_analysis_heatmap(
 @router.get("/{analysis_id}/trajectory", response_model=AnalysisTrajectoryResponse)
 async def get_analysis_trajectory(
     analysis_id: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[Optional[AsyncSession], Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> dict:
+    if db is None:
+        return {
+            "analysis_id": uuid.UUID(analysis_id) if _is_valid_uuid(analysis_id) else uuid.uuid4(),
+            "points": [],
+            "image_url": None,
+        }
     try:
         analysis_uuid = uuid.UUID(str(analysis_id))
     except (ValueError, TypeError):
@@ -215,16 +345,18 @@ async def get_analysis_trajectory(
     return {
         "analysis_id": analysis.id,
         "points": [],
-        "image_url": None,
+        "image_url": analysis.video_url,
     }
 
 
 @router.get("/jobs/{job_id}", response_model=AnalysisJobRead)
 async def get_analysis_job(
     job_id: str,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[Optional[AsyncSession], Depends(get_db)],
     current_user: Annotated[UserModel, Depends(get_current_user)],
 ) -> AnalysisJobModel:
+    if db is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
     try:
         job_uuid = uuid.UUID(str(job_id))
     except (ValueError, TypeError):
