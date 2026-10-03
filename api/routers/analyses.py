@@ -48,14 +48,14 @@ async def create_analysis(
 
     job = AnalysisJobModel(
         video_id=payload.video_id,
-        player_id=payload.player_id,
+        player_id=player_uuid,
         status="queued",
     )
     db.add(job)
     await db.flush()
 
     analysis = AnalysisModel(
-        player_id=payload.player_id,
+        player_id=player_uuid,
         job_id=job.id,
         match_name=payload.match_name,
     )
