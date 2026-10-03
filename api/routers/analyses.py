@@ -7,6 +7,7 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.deps import get_db, get_current_user
@@ -43,6 +44,30 @@ def _redis_reachable() -> bool:
         return result == 0
     except Exception:
         return False
+
+
+@router.get("", response_model=list[AnalysisRead])
+async def list_analyses(
+    player_id: str | None = None,
+    db: Annotated[Optional[AsyncSession], Depends(get_db)] = None,
+    current_user: Annotated[UserModel, Depends(get_current_user)] = None,
+) -> list:
+    if db is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable")
+
+    query = select(AnalysisModel)
+    if player_id:
+        try:
+            player_uuid: uuid.UUID | None = uuid.UUID(str(player_id))
+        except (ValueError, TypeError):
+            player_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"player:{player_id}")
+        query = query.where(AnalysisModel.player_id == player_uuid)
+
+    try:
+        rows = (await db.execute(query.order_by(AnalysisModel.created_at.desc()))).scalars().all()
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Database error: {exc}")
+    return list(rows)
 
 
 @router.post("", response_model=AnalysisRead)
