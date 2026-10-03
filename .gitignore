@@ -19,3 +19,9 @@ processed/
 tmp/
 *.db
 supabase/.temp/
+
+# Local dev
+run_local.bat
+footiq_test_raw/
+footiq_test.db
+verify.db
