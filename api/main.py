@@ -38,7 +38,7 @@ from api.routers import (
 )
 from core.config import settings
 from core.logging_config import setup_logging, log_request
-from db.session import init_db, async_session_factory
+from db.session import init_db, async_session_factory, _active_url
 
 logger = setup_logging()
 
@@ -278,21 +278,27 @@ async def health_ready() -> dict:
 async def health_db() -> dict:
     """Report whether the configured Postgres is actually reachable.
 
-    init_db() only logs a warning on failure, so the API boots even when the
-    database is unreachable and every DB-backed route then 500s. This endpoint
-    makes that failure mode visible instead of guessing.
+    init_db() probes the configured DATABASE_URL at startup and falls back to
+    a local SQLite file when it is unreachable, so the API can still serve
+    requests without Supabase. This endpoint reports which backend is active.
     """
     from sqlalchemy import text
 
-    safe_target = settings.database_url.split("@")[-1]
+    target = (_active_url or "").split("@")[-1]
+    is_fallback = (target or "").startswith("/tmp")
     try:
         async with async_session_factory() as session:
             await session.execute(text("SELECT 1"))
-        return {"database": "ok", "target": safe_target}
+        return {
+            "database": "ok",
+            "backend": "sqlite" if is_fallback else "postgres",
+            "target": target,
+        }
     except Exception as exc:
         return {
             "database": "unreachable",
-            "target": safe_target,
+            "backend": "sqlite" if is_fallback else "postgres",
+            "target": target,
             "error": type(exc).__name__,
             "detail": str(exc)[:200],
         }
