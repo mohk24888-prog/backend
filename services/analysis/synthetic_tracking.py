@@ -31,8 +31,8 @@ FRAME_HEIGHT = 720
 TEAM_SIZE = 11
 
 # Rough player box size in canvas pixels, scaled per player below.
-BASE_BOX_W = 24
-BASE_BOX_H = 60
+BASE_BOX_W = 18
+BASE_BOX_H = 48
 
 EVENT_TYPES = [
     "Progressive Carry",
@@ -49,6 +49,7 @@ def _formation_slots(team_id: int) -> list[tuple[float, float]]:
     # x runs left->right, y top->bottom. Team 0 attacks right, team 1 left.
     direction = 1.0 if team_id == 0 else -1.0
     # 4-3-3: keeper, four defenders, three midfielders, three forwards.
+    # All positions are fractions of the pitch so they stay in frame.
     slots = [
         (0.12, 0.50),  # GK
         (0.28, 0.18),  # RB
@@ -83,8 +84,8 @@ def _player_position(
     px = rng.uniform(0, math.tau)
     py = rng.uniform(0, math.tau)
 
-    drift_x = 0.045 * math.sin(t * fx + px)
-    drift_y = 0.075 * math.sin(t * fy + py)
+    drift_x = 0.035 * math.sin(t * fx + px)
+    drift_y = 0.055 * math.sin(t * fy + py)
 
     # Keep everyone inside the frame with a margin for their box.
     x = min(max(base_x + drift_x, 0.07), 0.93)
