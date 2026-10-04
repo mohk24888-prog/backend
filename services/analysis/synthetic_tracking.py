@@ -43,6 +43,38 @@ EVENT_TYPES = [
     "Pressing",
 ]
 
+# Pitch markings in normalized coordinates (0..1).
+_PITCH_MARKINGS = {
+    "center_x": 0.5,
+    "center_y": 0.5,
+    "center_radius": 0.12,
+    "box_top_y": 0.11,
+    "box_bottom_y": 0.89,
+    "box_left_x": 0.0,
+    "box_right_x": 0.16,
+    "box_opp_left_x": 0.84,
+    "box_opp_right_x": 1.0,
+    "goal_y": 0.5,
+    "goal_x": 0.04,
+    "goal_opp_x": 0.96,
+}
+
+# Pitch markings in normalized coordinates (0..1).
+_PITCH_MARKINGS = {
+    "center_x": 0.5,
+    "center_y": 0.5,
+    "center_radius": 0.12,
+    "box_top_y": 0.11,
+    "box_bottom_y": 0.89,
+    "box_left_x": 0.0,
+    "box_right_x": 0.16,
+    "box_opp_left_x": 0.84,
+    "box_opp_right_x": 1.0,
+    "goal_y": 0.5,
+    "goal_x": 0.04,
+    "goal_opp_x": 0.96,
+}
+
 
 def _formation_slots(team_id: int) -> list[tuple[float, float]]:
     """Return (x, y) pitch fractions for a 4-3-3 starting shape."""
@@ -149,6 +181,8 @@ def build_overlay(
     )
 
     frames: list[dict[str, Any]] = []
+    subject_history: list[tuple[int, int]] = []
+    ball_history: list[tuple[int, int]] = []
 
     for index in range(frame_count):
         t = round(index / fps, 3)
@@ -164,11 +198,12 @@ def build_overlay(
                 identity["track_id"],
             )
             scale = 0.82 + y * 0.42
+            bbox = _box_for(x, y, scale)
             players.append(
                 {
                     "x": int(x * FRAME_WIDTH),
                     "y": int(y * FRAME_HEIGHT),
-                    "bbox": _box_for(x, y, scale),
+                    "bbox": bbox,
                     "is_subject": identity["track_id"] == subject_track_id,
                     "track_id": identity["track_id"],
                     "team_id": identity["team_id"],
@@ -178,8 +213,22 @@ def build_overlay(
         ball_angle = t * 0.55 + rng_phase(seed)
         ball_x = 0.5 + 0.33 * math.sin(ball_angle)
         ball_y = 0.5 + 0.24 * math.cos(ball_angle * 1.31)
+        ball_px = int(ball_x * FRAME_WIDTH)
+        ball_py = int(ball_y * FRAME_HEIGHT)
         subject = next(p for p in players if p["is_subject"])
         speed_kmh = 18.0 + 16.0 * abs(math.sin(t * 0.42))
+
+        subject_history.append((subject["x"], subject["y"]))
+        ball_history.append((ball_px, ball_py))
+        if len(subject_history) > 24:
+            subject_history.pop(0)
+        if len(ball_history) > 24:
+            ball_history.pop(0)
+
+        velocity = {
+            "x": int((subject["x"] - subject_history[-2][0]) if len(subject_history) > 1 else 0),
+            "y": int((subject["y"] - subject_history[-2][1]) if len(subject_history) > 1 else 0),
+        }
 
         event = None
         for event_t in event_times:
@@ -196,11 +245,15 @@ def build_overlay(
                 "t": t,
                 "players": players,
                 "ball": {
-                    "x": int(ball_x * FRAME_WIDTH),
-                    "y": int(ball_y * FRAME_HEIGHT),
+                    "x": ball_px,
+                    "y": ball_py,
+                    "trail": list(ball_history),
                 },
-                "event": event,
+                "subject_trail": list(subject_history),
+                "velocity": velocity,
                 "speed_kmh": round(speed_kmh, 1),
+                "event": event,
+                "pitch": _PITCH_MARKINGS,
                 "subject_x": subject["x"],
                 "subject_y": subject["y"],
             }
