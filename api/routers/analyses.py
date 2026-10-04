@@ -163,9 +163,29 @@ def _run_inline_analysis(
     seed = str(video.id) if video is not None else str(analysis.id)
     duration_s = float(getattr(video, "duration_seconds", None) or 40.0)
 
+    video_properties: dict[str, Any] = {}
+    if video is not None:
+        if getattr(video, "duration_seconds", None):
+            video_properties["duration_seconds"] = float(video.duration_seconds)
+        if getattr(video, "width", None):
+            video_properties["width"] = int(video.width)
+        if getattr(video, "height", None):
+            video_properties["height"] = int(video.height)
+        if getattr(video, "mime_type", None):
+            video_properties["mime_type"] = str(video.mime_type)
+
     started = datetime.now(timezone.utc)
-    overlay = build_overlay(seed=seed, duration_s=duration_s)
-    metrics = build_metrics(duration_s, len(overlay["frames"]), seed)
+    overlay = build_overlay(
+        seed=seed,
+        duration_s=duration_s,
+        video_properties=video_properties or None,
+    )
+    metrics = build_metrics(
+        duration_s,
+        len(overlay["frames"]),
+        seed,
+        video_properties=video_properties or None,
+    )
 
     analysis.overlay_data = overlay
     analysis.simulation_data = {

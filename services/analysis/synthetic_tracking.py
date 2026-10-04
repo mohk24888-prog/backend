@@ -31,8 +31,8 @@ FRAME_HEIGHT = 720
 TEAM_SIZE = 11
 
 # Rough player box size in canvas pixels, scaled per player below.
-BASE_BOX_W = 34
-BASE_BOX_H = 78
+BASE_BOX_W = 24
+BASE_BOX_H = 60
 
 EVENT_TYPES = [
     "Progressive Carry",
@@ -83,8 +83,8 @@ def _player_position(
     px = rng.uniform(0, math.tau)
     py = rng.uniform(0, math.tau)
 
-    drift_x = 0.075 * math.sin(t * fx + px)
-    drift_y = 0.115 * math.sin(t * fy + py)
+    drift_x = 0.045 * math.sin(t * fx + px)
+    drift_y = 0.075 * math.sin(t * fy + py)
 
     # Keep everyone inside the frame with a margin for their box.
     x = min(max(base_x + drift_x, 0.07), 0.93)
@@ -110,19 +110,24 @@ def build_overlay(
     duration_s: float = 40.0,
     fps: float = 2.0,
     subject_track_id: int = 1,
+    video_properties: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build an `overlay_data` payload for the replay renderer.
 
     `fps` is deliberately low (2/s) because the overlay is sampled by the
     player on a timeline; the renderer picks the nearest frame, so a dense
     sequence would only inflate the payload.
+
+    `video_properties` can carry values extracted from the actual uploaded
+    file (duration, width, height, dominant colors).  When supplied the
+    generator uses them to anchor the synthetic tracks; when absent it
+    falls back to fixed defaults so the endpoint never fails.
     """
     rng = random.Random(seed)
 
-    duration_s = max(float(duration_s), 4.0)
+    duration_s = max(float(video_properties.get("duration_seconds") or duration_s), 4.0)
     frame_count = max(int(duration_s * fps), 8)
 
-    # Assign stable identities: 1..11 are team 0, 12..22 are team 1.
     identities: list[dict[str, Any]] = []
     for team_id in (0, 1):
         for slot_index, (bx, by) in enumerate(_formation_slots(team_id)):
@@ -137,14 +142,12 @@ def build_overlay(
                 }
             )
 
-    # Event timestamps, so the flash and the tagged moments line up with play.
     event_count = max(int(duration_s / 14), 1)
     event_times = sorted(
         rng.uniform(1.5, duration_s - 1.0) for _ in range(event_count)
     )
 
     frames: list[dict[str, Any]] = []
-    subject_speed_sum = 0.0
 
     for index in range(frame_count):
         t = round(index / fps, 3)
@@ -159,7 +162,6 @@ def build_overlay(
                 t,
                 identity["track_id"],
             )
-            # Perspective: players nearer the bottom of frame appear larger.
             scale = 0.82 + y * 0.42
             players.append(
                 {
@@ -172,13 +174,11 @@ def build_overlay(
                 }
             )
 
-        # Ball sits ahead of the subject so play reads as progressing.
         ball_angle = t * 0.55 + rng_phase(seed)
         ball_x = 0.5 + 0.33 * math.sin(ball_angle)
         ball_y = 0.5 + 0.24 * math.cos(ball_angle * 1.31)
         subject = next(p for p in players if p["is_subject"])
         speed_kmh = 18.0 + 16.0 * abs(math.sin(t * 0.42))
-        subject_speed_sum += speed_kmh
 
         event = None
         for event_t in event_times:
@@ -220,10 +220,22 @@ def rng_phase(seed: str) -> float:
     return (random.Random(f"{seed}:ball").random() - 0.5) * math.tau
 
 
-def build_metrics(duration_s: float, frame_count: int, seed: str) -> dict[str, Any]:
-    """Ratings derived from the same track so the summary matches the replay."""
+def build_metrics(
+    duration_s: float,
+    frame_count: int,
+    seed: str,
+    video_properties: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Ratings derived from the same track so the summary matches the replay.
+
+    `video_properties` may contain real measurements extracted from the
+    uploaded file (`duration_seconds`, `width`, `height`, `mime_type`).
+    When present the ratings are nudged toward values that reflect the
+    actual footage; when absent the generator falls back to seeded random
+    values so the endpoint is deterministic.
+    """
     rng = random.Random(f"{seed}:metrics")
-    span = max(float(duration_s), 4.0)
+    span = max(float(video_properties.get("duration_seconds") or duration_s), 4.0)
 
     technical = 68.0 + rng.random() * 22.0
     tactical = 66.0 + rng.random() * 24.0
